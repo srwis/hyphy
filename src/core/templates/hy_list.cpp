@@ -227,16 +227,23 @@ void _hyList<PAYLOAD>::Clone(const _hyList<PAYLOAD>* clone_from, const long from
 }
 
 template<typename PAYLOAD>
-void _hyList<PAYLOAD>::append(const PAYLOAD item)
-{
+void _hyList<PAYLOAD>::append(const PAYLOAD item) {
   InsertElement(item, HY_LIST_INSERT_AT_END);
 }
 
 template<typename PAYLOAD>
-void _hyList<PAYLOAD>::append_multiple(const PAYLOAD item, const unsigned long copies)
-{
+void _hyList<PAYLOAD>::append_multiple(const PAYLOAD item, const unsigned long copies) {
   RequestSpace (laLength + copies);
   for (unsigned long i = 0UL; i < copies; i++) {
+    append (item);
+  }
+}
+
+template<typename PAYLOAD>
+void _hyList<PAYLOAD>::append_or_insert(const PAYLOAD item, const unsigned long index) {
+  if (index < lLength) {
+    SetItem(index, item);
+  } else {
     append (item);
   }
 }
@@ -259,7 +266,7 @@ void _hyList<PAYLOAD>::RequestSpace(const unsigned long slots, bool set_length)
 }
 
 template<typename PAYLOAD>
-PAYLOAD _hyList<PAYLOAD>::AtIndex(const unsigned long index) const
+PAYLOAD& _hyList<PAYLOAD>::AtIndex(const unsigned long index) const
 {
   return lData[index];
 }
@@ -302,8 +309,16 @@ void _hyList<PAYLOAD>::Clear(bool completeClear)
 template<typename PAYLOAD>
 void _hyList<PAYLOAD>::CompactList(void)
 {
-  if (laLength - lLength > HY_LIST_ALLOCATION_CHUNK) {
-    laLength -= ((laLength - lLength) / HY_LIST_ALLOCATION_CHUNK) * HY_LIST_ALLOCATION_CHUNK;
+  bool do_resize = false;
+  
+  long buffer_size = (laLength > (HY_LIST_ALLOCATION_CHUNK << 3)) ? laLength >> 3 : HY_LIST_ALLOCATION_CHUNK;
+  
+  if (laLength - lLength > buffer_size) {
+      laLength -= ((laLength - lLength) / buffer_size) * buffer_size;
+      do_resize = true;
+  }
+  
+  if (do_resize) {
     if (laLength) {
       lData = (PAYLOAD *)MemReallocate((Ptr)lData, laLength * sizeof(PAYLOAD));
     } else {
@@ -363,7 +378,7 @@ template<typename PAYLOAD>
 void _hyList<PAYLOAD>::ResizeList(void)
 {
   if (lLength > laLength) {
-    unsigned long incBy = (HY_LIST_ALLOCATION_CHUNK * 5UL > lLength) ? HY_LIST_ALLOCATION_CHUNK : lLength / 5UL;
+    unsigned long incBy = ((HY_LIST_ALLOCATION_CHUNK << 3L) > lLength) ? HY_LIST_ALLOCATION_CHUNK : (laLength >> 3L);
 
     laLength += incBy;
 
@@ -694,11 +709,15 @@ void _hyList<PAYLOAD>::PermuteWithReplacement(const unsigned long blockLength)
 }
 
 template<typename PAYLOAD>
-PAYLOAD _hyList<PAYLOAD>::Pop(void)
+PAYLOAD _hyList<PAYLOAD>::Pop(bool compact)
 {
   if (lLength > 0UL) {
-    lLength--;
-    return lData[lLength];
+    if (compact) {
+      PAYLOAD ret_value = lData[--lLength];
+      CompactList();
+      return ret_value;
+    }
+    return lData[--lLength];
   }
 
   warnError ("_hyList::Pop called on an empty list");

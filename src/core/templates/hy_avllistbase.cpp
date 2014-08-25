@@ -1,190 +1,50 @@
 /*
 
-HyPhy - Hypothesis Testing Using Phylogenies.
+ HyPhy - Hypothesis Testing Using Phylogenies.
+ 
+ Copyright (C) 1997-now
+ Core Developers:
+ Sergei L Kosakovsky Pond (spond@ucsd.edu)
+ Steven Weaver (sweaver@ucsd.edu)
+ Martin Smith (martin.audacis@gmail.com)
+ 
+ Module Developers:
+ Art FY Poon    (apoon@cfenet.ubc.ca)
+ Lance Hepler (nlhepler@gmail.com)
+ 
+ Significant contributions from:
+ Spencer V Muse (muse@stat.ncsu.edu)
+ Simon DW Frost (sdf22@cam.ac.uk)
+ 
+ Permission is hereby granted, free of charge, to any person obtaining a
+ copy of this software and associated documentation files (the
+ "Software"), to deal in the Software without restriction, including
+ without limitation the rights to use, copy, modify, merge, publish,
+ distribute, sublicense, and/or sell copies of the Software, and to
+ permit persons to whom the Software is furnished to do so, subject to
+ the following conditions:
+ 
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Copyright (C) 1997-2009
-  Sergei L Kosakovsky Pond (spond@ucsd.edu)
-  Art FY Poon              (apoon@cfenet.ubc.ca)
-
-Permission is hereby granted, free of charge, to any person obtaining a
-copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be included
-in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-_AVLList    structure inspired by the excellent documentation of
-GNU libavl 2.0.1 by Ben Pfaff (http://www.msu.edu/~pfaffben/avl/index.html)
+    _AVLList    structure inspired by the excellent documentation of
+    GNU libavl 2.0.1 by Ben Pfaff (http://www.msu.edu/~pfaffben/avl/index.html)
 
 */
 
-#include "avllist.h"
-#include "hy_strings.h"
-#include "errorfns.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <math.h>
-#include <limits.h>
-#include "legacy_parser.h"
 
 
-//______________________________________________________________________________
-// AVL Lists
-//______________________________________________________________________________
 
-_AVLList::_AVLList(_SimpleList *d) {
-  dataList = d;
-  root = -1;
-}
+/*
 
-//______________________________________________________________________________
-long _AVLList::Find(BaseRef obj) {
-
-  long curNode = root;
-
-  while (curNode >= 0) {
-    long comp = dataList->Compare(obj, curNode);
-
-    if (comp < 0) {
-      curNode = leftChild.lData[curNode];
-    } else if (comp > 0) {
-      curNode = rightChild.lData[curNode];
-    } else {
-      return curNode;
-    }
-  }
-
-  return HY_NOT_FOUND;
-}
-
-//______________________________________________________________________________
-long _AVLList::FindLong(long obj) {
-  long curNode = root;
-
-  while (curNode >= 0) {
-    long comp = dataList->lData[curNode];
-
-    if (obj < comp) {
-      curNode = leftChild.lData[curNode];
-    } else if (obj > comp) {
-      curNode = rightChild.lData[curNode];
-    } else {
-      return curNode;
-    }
-  }
-
-  return HY_NOT_FOUND;
-}
-
-//______________________________________________________________________________
-char _AVLList::FindBest(BaseRef obj, long &lastNode) {
-  long curNode = root, comp = 1;
-
-  while (curNode >= 0 && comp) {
-    comp = dataList->Compare(obj, curNode);
-    lastNode = curNode;
-
-    if (comp < 0) {
-      curNode = leftChild.lData[curNode];
-    } else if (comp > 0) {
-      curNode = rightChild.lData[curNode];
-    } else {
-      return 0;
-    }
-  }
-
-  return comp;
-}
-
-//______________________________________________________________________________
-long _AVLList::Find(BaseRef obj, _SimpleList &hist) {
-  long curNode = root;
-
-  while (curNode >= 0) {
-    long comp = dataList->Compare(obj, curNode);
-
-    if (comp < 0) {
-      hist << curNode;
-      curNode = leftChild.lData[curNode];
-    } else if (comp > 0) {
-      hist << curNode;
-      curNode = rightChild.lData[curNode];
-    } else {
-      return curNode;
-    }
-  }
-
-  return HY_NOT_FOUND;
-}
-
-//______________________________________________________________________________
-long _AVLList::Next(long d, _SimpleList &hist) {
-  if (d >= 0) {
-    if (rightChild.lData[d] >= 0) {
-      hist << d;
-      d = rightChild.lData[d];
-      while (leftChild.lData[d] >= 0) {
-        hist << d;
-        d = leftChild.lData[d];
-      }
-      return d;
-    } else {
-      while (hist.countitems()) {
-        long x = hist.lData[hist.lLength - 1];
-
-        hist.Delete(hist.lLength - 1);
-
-        if (rightChild.lData[x] != d) {
-          return x;
-        }
-        d = x;
-      }
-
-      return HY_NOT_FOUND;
-    }
-  }
-
-  d = root;
-  while (d >= 0 && leftChild.lData[d] >= 0) {
-    d = leftChild.lData[d];
-  }
-
-  return d;
-}
-
-//______________________________________________________________________________
-long _AVLList::First(void) {
-  long d = root;
-  while (d >= 0 && leftChild.lData[d] >= 0) {
-    d = leftChild.lData[d];
-  }
-
-  return d;
-}
-
-//______________________________________________________________________________
-long _AVLList::Last(void) {
-  long d = root;
-  while (d >= 0 && rightChild.lData[d] >= 0) {
-    d = rightChild.lData[d];
-  }
-
-  return d;
-}
 
 //______________________________________________________________________________
 long _AVLList::GetByIndex(const long theIndex) {
@@ -214,41 +74,6 @@ long _AVLList::GetByIndex(const long theIndex) {
   return HY_NOT_FOUND;
 }
 
-//______________________________________________________________________________
-long _AVLList::Prev(long d, _SimpleList &hist) {
-  if (d >= 0) {
-    if (leftChild.lData[d] >= 0) {
-      hist << d;
-      d = leftChild.lData[d];
-      while (rightChild.lData[d] >= 0) {
-        hist << d;
-        d = rightChild.lData[d];
-      }
-      return d;
-    } else {
-      while (hist.countitems()) {
-        long x = hist.lData[hist.lLength - 1];
-
-        hist.Delete(hist.lLength - 1);
-
-        if (leftChild.lData[x] != d) {
-          return x;
-        }
-        d = x;
-      }
-
-      return HY_NOT_FOUND;
-    }
-  }
-
-  d = root;
-  while (d >= 0 && rightChild.lData[d] >= 0) {
-    d = rightChild.lData[d];
-  }
-
-  return d;
-
-}
 
 //______________________________________________________________________________
 void _AVLList::ReorderList(_SimpleList *s) {
@@ -344,28 +169,6 @@ void _AVLList::ConsistencyCheck(void) {
 
 }
 
-//______________________________________________________________________________
-long _AVLList::Traverser(_SimpleList &nodeStack, long &t, long r) {
-  if (r >= 0) {
-    t = r;
-    nodeStack.Clear();
-  }
-
-  while (t >= 0) {
-    nodeStack << t;
-    t = leftChild.lData[t];
-  }
-
-  if (long h = nodeStack.lLength) {
-    h--;
-    t = nodeStack.lData[h];
-    r = t;
-    t = rightChild.lData[t];
-    nodeStack.Delete(h, false);
-    return r;
-  }
-  return HY_NOT_FOUND;
-}
 
 //______________________________________________________________________________
 BaseRef _AVLList::toStr(void) {
@@ -433,10 +236,6 @@ long _AVLList::InsertData(BaseRef b, long, bool) {
   return n;
 }
 
-//______________________________________________________________________________
-unsigned long _AVLList::countitems(void) {
-  return dataList->lLength - emptySlots.lLength;
-}
 
 //______________________________________________________________________________
 long _AVLList::Insert(BaseRef b, long xtra, bool cp, bool clear) {
@@ -465,11 +264,6 @@ long _AVLList::Insert(BaseRef b, long xtra, bool cp, bool clear) {
       da << go_right;
     }
 
-    /*if (da.lLength > 3*log (dataList->lLength+2))
-    {
-        WarnError ("AVLList internal error!");
-        return -1;
-    }*/
 
     // insert new node
 
@@ -575,10 +369,7 @@ long _AVLList::Insert(BaseRef b, long xtra, bool cp, bool clear) {
     return p;
   }
 
-  /*dataList->InsertElement (b,-1,false,false);
-  leftChild  << -1;
-  rightChild << -1;
-  balanceFactor << 0;*/
+
   root = InsertData(b, xtra, cp);
 
   return 0;
@@ -829,4 +620,4 @@ void _AVLList::Delete(BaseRef b, bool delMe) {
   }
   //ConsistencyCheck ();
 
-}
+} */
