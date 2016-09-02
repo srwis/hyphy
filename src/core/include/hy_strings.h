@@ -471,7 +471,7 @@ public:
   * @return true if strings are equal
   * @sa Equal()
   */
-  bool EqualWithWildChar(const _String&, const char wildChar = '*') const ;
+  bool EqualWithWildChar(const _String&, const char wildChar = '*', unsigned long start_this = 0UL, unsigned long start_pattern = 0UL) const ;
 
   /**
   * Checks if String is lexicographically greater

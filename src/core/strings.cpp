@@ -410,48 +410,63 @@ bool _String::Equal(const char c) const {
 
 
 
-bool _String::EqualWithWildChar(const _String &s, const char wildchar) const {
-  // wildcards only matter in the second string
+bool _String::EqualWithWildChar(const _String &pattern, const char wildchar, unsigned long start_this, unsigned long start_pattern) const {
   
-  if (s.s_length > 0UL && wildchar != '\0') {
-    unsigned long   match_this_char = 0UL;
-    bool            is_wildcard = s.s_data[match_this_char] == wildchar,
-                    scanning_s = is_wildcard;
-    
-    unsigned long i = 0UL;
-    while (1) {
+    if (pattern.s_length > start_pattern && wildchar != '\0') {
+      unsigned long   match_this_char = start_pattern;
+        // the position we are currently trying to match in the pattern
       
-      if (scanning_s) { // skip consecutive wildcards in "s"
-        scanning_s = s.s_data[++match_this_char] == wildchar;
-      } else {
-        if (s_data[i] == s.s_data[match_this_char]) {
-              // try character match
-              // note that the terminal '0' characters will always match, so
-              // this is where we terminate
-          i++;
-          match_this_char++;
-          if (i > s_length || match_this_char > s.s_length) {
-            break;
+      bool            is_wildcard = pattern.s_data[match_this_char] == wildchar,
+      scanning_pattern = is_wildcard;
+      
+      unsigned long i = start_this;
+        // the position we are currently trying to match in *this
+      
+      while (i <= s_length) {
+        
+        if (scanning_pattern) { // skip consecutive wildcards in "pattern"
+          scanning_pattern = pattern.s_data[++match_this_char] == wildchar;
+        } else {
+          if (s_data[i] == pattern.s_data[match_this_char]) {
+            
+            if (is_wildcard) {
+                // could either match the next char or consume it into the wildcard
+              if (EqualWithWildChar (pattern, wildchar, i, match_this_char)) {
+                  // matching worked
+                return true;
+              } else {
+                i++;
+                continue;
+              }
+            } else {
+                // try character match
+                // note that the terminal '0' characters will always match, so
+                // this is where we terminate
+              i++;
+              match_this_char++;
+              if (i > s_length || match_this_char > pattern.s_length) {
+                break;
+              }
+              is_wildcard =  pattern.s_data[match_this_char] == wildchar;
+              scanning_pattern = is_wildcard;
+            }
+          } else { // match wildcard
+            if (!is_wildcard) {
+              return false;
+            }
+            scanning_pattern = false;
+            i++;
           }
-          is_wildcard =  s.s_data[match_this_char] == wildchar;
-          scanning_s = is_wildcard;
-        } else { // match wildcard
-          if (!is_wildcard) {
-            return false;
-          }
-          scanning_s = false;
-          i++;
         }
       }
+      
+      return match_this_char > pattern.s_length;
+    } else {
+      return s_length == start_this;
     }
     
-    return match_this_char > s.s_length;
-  } else {
-    return s_length == 0UL;
+    return false;
   }
-  
-  return false;
-}
 
   //Begins with string
 bool _String::startswith(const _String& s, bool caseSensitive) const{
