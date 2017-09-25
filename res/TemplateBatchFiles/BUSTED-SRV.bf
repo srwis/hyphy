@@ -1,29 +1,26 @@
-RequireVersion ("2.1320141020");
+RequireVersion ("2.31");
 
-console.log("ERROR: THIS BATCHFILE WILL NOT RUN PROPERLY WITH UPDATED TERMS BASE. QUITTING.");
-exit();
+//console.log("ERROR: THIS BATCHFILE WILL NOT RUN PROPERLY WITH UPDATED TERMS BASE. QUITTING.");
+//exit();
 
+LoadFunctionLibrary("libv3/all-terms.bf"); // must be loaded before CF3x4
+LoadFunctionLibrary("libv3/UtilityFunctions.bf");
+LoadFunctionLibrary("libv3/IOFunctions.bf");
+LoadFunctionLibrary("libv3/tasks/estimators.bf");
+LoadFunctionLibrary("libv3/tasks/alignments.bf");
+LoadFunctionLibrary("libv3/models/codon.bf");
+LoadFunctionLibrary("libv3/tasks/trees.bf");
+LoadFunctionLibrary("libv3/tasks/genetic_code.bf");
+LoadFunctionLibrary("SelectionAnalyses/modules/io_functions.ibf");
+LoadFunctionLibrary("SelectionAnalyses/modules/selection_lib.ibf");
+LoadFunctionLibrary("libv3/models/codon/BS_REL.bf");
+LoadFunctionLibrary("libv3/convenience/math.bf");
 
 _BUSTED_timers  = {3,1};
 busted.taskTimerStart (2);
 
 VERBOSITY_LEVEL				= 0;
 //LF_SMOOTHING_SCALER         = 0.1;
-
-
-LoadFunctionLibrary("GrabBag");
-LoadFunctionLibrary("CF3x4");
-LoadFunctionLibrary("TreeTools");
-
-
-// namespace 'utility' for convenience functions
-LoadFunctionLibrary("libv3/UtilityFunctions.bf");
-
-// namespace 'io' for interactive/datamonkey i/o functions
-LoadFunctionLibrary("libv3/IOFunctions.bf");
-
-// namespace 'models.DNA.GTR' for the nucleotide GTR model
-LoadFunctionLibrary("libv3/tasks/estimators.bf");
 
 
 io.DisplayAnalysisBanner ({"info" : "BUSTED (branch-site unrestricted statistical test of episodic diversification)
@@ -52,7 +49,7 @@ io.DisplayAnalysisBanner ({"info" : "BUSTED (branch-site unrestricted statistica
 ------------------------------------------------------------------------------*/
 
 
-LoadFunctionLibrary("BranchSiteTemplate");
+
 
 
 
