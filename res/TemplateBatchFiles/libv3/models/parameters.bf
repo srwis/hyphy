@@ -331,7 +331,7 @@ lfunction parameters.GenerateSequentialNames(prefix, count, delimiter) {
         delimiter = "_";
     }
     holder = {};
-    for (k = 0; k < count; k += 1) {
+    for (k = 1; k < count+1; k += 1) {
         holder + (prefix + delimiter + k);
     }
     return holder;
