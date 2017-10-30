@@ -1,4 +1,4 @@
-RequireVersion ("2.31");
+RequireVersion ("2.3.3");
 
 
 LoadFunctionLibrary("libv3/all-terms.bf"); // must be loaded before CF3x4
@@ -40,8 +40,8 @@ busted.MG94 = "MG94xREV with separate rates for test/background branches";
 busted.json.background = busted.background;
 busted.json.site_logl  = "Site Log Likelihood";
 busted.json.evidence_ratios  = "Evidence Ratios";
-busted.rate_classes = 3;
-busted.srv_rate_classes = 3;
+busted.rate_classes = 4;
+busted.srv_rate_classes = 4;
 
 busted.json    = { terms.json.analysis: busted.analysis_description,
                    terms.json.input: {},
