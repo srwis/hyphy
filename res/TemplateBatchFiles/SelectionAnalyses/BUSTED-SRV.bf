@@ -53,7 +53,12 @@ busted.json    = { terms.json.analysis: busted.analysis_description,
                    busted.json.site_logl : {}
                   };
 
-
+busted.display_orders = {terms.original_name: -1,
+                         terms.json.nucleotide_gtr: 0,
+                         busted.MG94: 1,
+                         busted.unconstrained: 2,
+                         busted.constrained: 3                        
+                        };
 
 selection.io.startTimer (busted.json [terms.json.timers], "Overall", 0);
 
@@ -107,8 +112,18 @@ utility.ForEach (busted.global_dnds, "_value_", 'io.ReportProgressMessageMD ("BU
 
 selection.io.stopTimer (busted.json [terms.json.timers], "Preliminary model fitting");
 
+
+//Store MG94 to JSON
+selection.io.json_store_lf_GTR_MG94 (busted.json,
+                            busted.MG94,
+                            busted.final_partitioned_mg_results[terms.fit.log_likelihood],
+                            busted.final_partitioned_mg_results[terms.parameters],
+                            busted.sample_size,
+                            utility.ArrayToDict (utility.Map (busted.global_dnds, "_value_", "{'key': _value_[terms.description], 'value' : Eval({{_value_ [terms.fit.MLE],1}})}")),
+                            (busted.final_partitioned_mg_results[terms.efv_estimate])["VALUEINDEXORDER"][0],
+                            busted.display_orders[busted.MG94]);
 utility.ForEachPair (busted.filter_specification, "_key_", "_value_",
-    'selection.io.json_store_branch_attribute(busted.json, busted.MG94, terms.branch_length, 2,
+    'selection.io.json_store_branch_attribute(busted.json, busted.MG94, terms.branch_length, busted.display_orders[busted.MG94],
                                              _key_,
                                              selection.io.extract_branch_info((busted.final_partitioned_mg_results[terms.branch_length])[_key_], "selection.io.branch.length"));');
 
@@ -149,7 +164,7 @@ busted.test.bsrel_model =  model.generic.DefineMixtureModel("busted.model.srv.Mo
         "busted.test", {
             "0": parameters.Quote(terms.global),
             "1": busted.codon_data_info[terms.code],
-            "2": parameters.Quote (busted.rate_classes), // the number of rate classes
+            "2": parameters.Quote (busted.rate_classes) // the number of rate classes
 	 },
         busted.filter_names,
         None);
@@ -159,7 +174,7 @@ busted.background.bsrel_model =  model.generic.DefineMixtureModel("busted.model.
         "busted.background", {
             "0": parameters.Quote(terms.global),
             "1": busted.codon_data_info[terms.code],
-            "2": parameters.Quote (busted.rate_classes), // the number of rate classes
+            "2": parameters.Quote (busted.rate_classes) // the number of rate classes
         },
         busted.filter_names,
         None);
@@ -271,7 +286,8 @@ selection.io.json_store_lf (busted.json,
                             busted.full_model[terms.fit.log_likelihood],
                             busted.full_model[terms.parameters] + 9 , // +9 comes from CF3x4
                             busted.codon_data_info[terms.data.sample_size],
-                            busted.distribution_for_json);
+                            busted.distribution_for_json,
+							busted.display_orders[busted.unconstrained]);
 
 
 
@@ -337,7 +353,8 @@ if (!busted.run_test) {
                             busted.null_results[terms.fit.log_likelihood],
                             busted.null_results[terms.parameters] + 9 , // +9 comes from CF3x4
                             busted.codon_data_info[terms.data.sample_size],
-                            busted.distribution_for_json);
+                            busted.distribution_for_json,
+							busted.display_orders[busted.constrained]);
 
     (busted.json [busted.json.evidence_ratios])[busted.constrained] = busted.EvidenceRatios ( (busted.json [busted.json.site_logl])[busted.unconstrained],  (busted.json [busted.json.site_logl])[busted.constrained]);
     (busted.json [busted.json.evidence_ratios ])[busted.optimized_null] = busted.EvidenceRatios ( (busted.json [busted.json.site_logl])[busted.unconstrained],  (busted.json [busted.json.site_logl])[busted.optimized_null]);
@@ -349,7 +366,7 @@ console.log ( "Likelihood ratio test for episodic diversifying positive selectio
 
 selection.io.stopTimer (busted.json [terms.json.timers], "Overall");
 
-fprintf(stdout, busted.codon_data_info [terms.json.json]);
+//fprintf(stdout, busted.codon_data_info [terms.json.json]);
 
 io.SpoolJSON (busted.json, busted.codon_data_info [terms.json.json]);
 
