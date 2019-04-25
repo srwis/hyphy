@@ -328,8 +328,7 @@ bool      _ElementaryCommand::HandleFindRootOrIntegrate (_ExecutionList& current
             throw (expression & " does not depend on the variable " & target_variable->GetName()->Enquote());
         }
 
-        _Formula  * derivative = do_integrate ? nil : parsed_expression.Differentiate (*target_variable->GetName(),false);
-
+ 
         hyFloat    lb = _ProcessNumericArgumentWithExceptions (*GetIthParameter(3),currentProgram.nameSpacePrefix),
                    ub = _ProcessNumericArgumentWithExceptions (*GetIthParameter(4),currentProgram.nameSpacePrefix);
 
@@ -337,6 +336,8 @@ bool      _ElementaryCommand::HandleFindRootOrIntegrate (_ExecutionList& current
             throw (_String ('[') & lb & ',' & ub & "] is not a valid interval");
             return false;
         }
+
+        _Formula  * derivative = do_integrate ? nil : parsed_expression.Differentiate (*target_variable->GetName(),false);
 
         if (!do_integrate) {
             if (derivative) {
@@ -2644,7 +2645,7 @@ bool      _ElementaryCommand::HandleExecuteCommandsCases(_ExecutionList& current
                             if (!user_kwargs) {
                                 dynamic_reference_manager < (user_kwargs = new _AssociativeList);
                             }
-                            user_kwargs->MStore(new _FString (key->Cut (2, kStringEnd), false), payload, true);
+                            user_kwargs->MStore(key->Cut (2, kStringEnd), payload, true);
                             has_user_kwargs = true;
                         } else {
                             argument_list.Insert (new _String (*key), (long)new _String (((_FString*)payload)->get_str()), false);
@@ -3662,13 +3663,15 @@ bool      _ElementaryCommand::HandleChoiceList (_ExecutionList& current_program)
                         
                         _List choices;
                         target_variable->FillInList(choices, false);
-                        choices.bumpNInst();
+                        //choices.bumpNInst();
                         
                         handle_exclusions (target_variable->GetHDim(), excluded).Each (
                              [&] (long value, unsigned long ) -> void {
                                  _String const * parameter_name = LocateVar(value)->GetName();
-                                 (*available_choices) < new _List (choices.GetItem(value << 1),
-                                                                   choices.GetItem(1L + (value << 1)));
+                                 BaseRef key = choices.GetItem(value << 1),
+                                         description = choices.GetItem(1L + (value << 1));
+                                 key->AddAReference(); description->AddAReference();
+                                 (*available_choices) < new _List (key,description);
                              }
                              );
                                                                                        
@@ -3880,13 +3883,12 @@ void      _ElementaryCommand::ExecuteCase38 (_ExecutionList& chain, bool sample)
       _String      * dsName           = new _String (AppendContainerName(*(_String*)parameters(0),chain.nameSpacePrefix));
       _LikelihoodFunction *lf         = ((_LikelihoodFunction*)likeFuncList(objectID));
       
-      local_object_manager < ds;
-      local_object_manager < dsName;
+      local_object_manager < ds < dsName;
       
       _Matrix * partitionList         = nil;
       if (parameters.lLength>2) {
         _String  secondArg = *GetIthParameter(2);
-        partitionList = (_Matrix*)ProcessAnArgumentByType (&secondArg, chain.nameSpacePrefix, MATRIX);
+        local_object_manager < (partitionList = (_Matrix*)ProcessAnArgumentByType (&secondArg, chain.nameSpacePrefix, MATRIX));
       }
       _SimpleList                     partsToDo;
       
@@ -3895,7 +3897,6 @@ void      _ElementaryCommand::ExecuteCase38 (_ExecutionList& chain, bool sample)
       }
       
       ds->AddAReference();
-      dsName->AddAReference();
       StoreADataSet  (ds, dsName);
     
     } else {

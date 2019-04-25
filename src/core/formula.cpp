@@ -312,8 +312,6 @@ _Formula* _Formula::Differentiate (_String const & var_name, bool bail, bool con
 
     long dx_id = dx->get_index();
 
-    _Formula*     res = new _Formula ();
-
      ConvertToTree    ();
     
      //printf ("\n **** Diff %s on %s\n\n", _String ((_String*)toStr(kFormulaStringConversionNormal)).get_str(), var_name.get_str());
@@ -326,6 +324,7 @@ _Formula* _Formula::Differentiate (_String const & var_name, bool bail, bool con
         return new _Formula (new _Constant (0.0));
     }
 
+    _Formula*     res = new _Formula ();
     _Formula    ** dydx = new _Formula* [var_refs.countitems()] {0};// stores precomputed derivatives for all the
     
     auto dydx_cleanup = [&] () -> void {
@@ -349,6 +348,7 @@ _Formula* _Formula::Differentiate (_String const & var_name, bool bail, bool con
             } else {
                 dYdX = thisVar->varFormula->Differentiate (var_name, bail, false);
                 if (dYdX->IsEmpty()) {
+                    delete dYdX;
                     dydx_cleanup ();
                     return res;
                 }
@@ -363,7 +363,6 @@ _Formula* _Formula::Differentiate (_String const & var_name, bool bail, bool con
 
         if (!(dTree = InternalDifferentiate (theTree, dx_id, var_refs, dydx, *res))) {
             throw (_String ("Differentiation of ") & _String((_String*)toStr(kFormulaStringConversionNormal)) & " failed.");
-            res->Clear();
         }
     } catch (_String const &e) {
         dydx_cleanup ();
@@ -517,7 +516,6 @@ node<long>* _Formula::InternalDifferentiate (node<long>* currentSubExpression, l
                     throw (4);
                 }
 
-                node<long>*       full_expression = new node<long>;
                 node<long>*       y_raise_m2 = new node<long>;
                 node<long>*       yDx_minus_xDy = new node<long>;
                 node<long>*       xDy = new node<long>;
@@ -2785,7 +2783,7 @@ void    _Formula::ConvertToTree (bool err_msg) {
                     }
 
                     if (nTerms>nodeStack.lLength) {
-                        throw (_String ("Insufficient number of arguments for a call to ") & _String ((_String*)currentOp->toStr()) & " while converting " & _String ((_String*)toStr(kFormulaStringConversionNormal)).Enquote() & " to a parse tree");
+                        throw (_String ("Insufficient number of arguments for a call to ") & _String ((_String*)currentOp->toStr()) & " while converting " & toRPN(kFormulaStringConversionNormal).Enquote() & " to a parse tree");
                     }
 
                     node<long>* operationNode = new node<long>;
