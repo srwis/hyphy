@@ -374,12 +374,12 @@ namespace hyphy_global_objects {
   //____________________________________________________________________________________
   
   bool    IsModelReversible (long mid) {
-    _Matrix *m = nil,
-    *f = nil;
+    _Variable *m = nil,
+              *f = nil;
     bool    mbf;
     RetrieveModelComponents (mid, m, f, mbf);
     if (m&&f) {
-      return m->IsReversible(mbf?nil:f);
+        return ((_Matrix*)m->GetValue())->IsReversible(mbf?nil:(_Matrix*)f->GetValue());
     }
     return false;
   }
@@ -599,6 +599,7 @@ namespace hyphy_global_objects {
         if (type & HY_BL_TREE) {
             _Variable* tree_var = FetchVar (LocateVarByName(name));
             if (tree_var && tree_var->ObjectClass() == TREE) {
+                type = HY_BL_TREE;
                 return tree_var;
             }
         }

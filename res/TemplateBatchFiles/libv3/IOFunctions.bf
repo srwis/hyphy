@@ -67,6 +67,28 @@ lfunction io.PromptUserForString(prompt) {
 }
 
 /**
+ * @name io.PromptUserForFilePath
+ * @param prompt
+ */
+lfunction io.PromptUserForFilePath(prompt) {
+    SetDialogPrompt (prompt);
+    fprintf (PROMPT_FOR_FILE, CLEAR_FILE);
+    return  ^"LAST_FILE_PATH";
+}
+
+/**
+ * @name io.PromptUserForFilePath
+ * @param prompt
+ */
+function io.LoadFile(prompt) {
+   SetDialogPrompt (prompt);
+   ExecuteAFile (PROMPT_FOR_FILE);
+   return  ^"LAST_FILE_PATH";
+}
+
+
+
+/**
  * @name io._reportMessageHelper
  * @param analysis
  * @param text
@@ -473,6 +495,18 @@ lfunction io.SpoolLF(lf_id, trunk_path, tag) {
         tag = lf_id;
     }
     fprintf(trunk_path + "." + tag + ".bf", CLEAR_FILE, __lf_spool);
+}
+
+/**
+ * @name io.SpoolLFToPath
+ * @param lf_id
+ * @param trunk_path
+ * @param tag
+ * @returns nothing
+ */
+lfunction io.SpoolLFToPath(lf_id, path) {
+    Export(__lf_spool, ^ lf_id);
+    fprintf(path, CLEAR_FILE, __lf_spool);
 }
 
 /**

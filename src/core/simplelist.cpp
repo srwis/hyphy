@@ -185,7 +185,7 @@ const _SimpleList& _SimpleList::operator = (_SimpleList const &l) {
 }
 
 //Append operator
-_SimpleList _SimpleList::operator & (_SimpleList l) {
+_SimpleList _SimpleList::operator & (_SimpleList const& l) {
     _SimpleList res (l.lLength + lLength);
     if (!res.laLength) {
         return res;
@@ -290,7 +290,7 @@ long  _SimpleList::BinaryInsert (long n)
         return -pos+2;
     }
 
-    if (lData[pos]<n) {
+    if (pos < lLength && lData[pos]<n) {
         pos++;
     }
 
@@ -621,8 +621,7 @@ void  _SimpleList::Displace (long start, long end, long delta)
     }
 }
 
-void _SimpleList::Duplicate(BaseRefConst theRef)
-{
+void _SimpleList::Duplicate(BaseRefConst theRef) {
     _SimpleList const* l  = (_SimpleList const*)theRef;
     lLength         = l->lLength;
     laLength        = l->laLength;
@@ -1350,8 +1349,7 @@ void _SimpleList::RecursiveIndexSort (long from, long to, _SimpleList* index)
 }
 
 //Append & store operator
-void _SimpleList::RequestSpace (long slots)
-{
+void _SimpleList::RequestSpace (long slots) {
     if (slots>laLength) {
         laLength=(slots/MEMORYSTEP+1)*MEMORYSTEP;
         if (lData) {
@@ -1433,8 +1431,7 @@ BaseRef _SimpleList::toStr(unsigned long) {
 
 
 //Delete item at index (>=0)
-void  _SimpleList::TrimMemory (void)
-{
+void  _SimpleList::TrimMemory (void) {
     if (laLength>lLength) {
         laLength = lLength;
         if (laLength) {

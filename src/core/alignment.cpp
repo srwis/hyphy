@@ -169,13 +169,13 @@ long CodonAlignStringsStep( double * const score_matrix
     int    local_shortcut_came_from_this_move = -1;
 
     double choices[ HY_ALIGNMENT_TYPES_COUNT ],
-           max_score = -A_LARGE_NUMBER,
+           max_score = -INFINITY,
            penalty;
 
     // store the scores of our choices in choices,
     // pre-initialize to -infinity
     for ( i = 0; i < HY_ALIGNMENT_TYPES_COUNT; i++ ) {
-        choices[ i ] = -A_LARGE_NUMBER;
+        choices[ i ] = -INFINITY;
     }
     
     // if we're at least a CODON away from the edge...
@@ -198,7 +198,7 @@ long CodonAlignStringsStep( double * const score_matrix
 
         if ( r_codon < 0 ) {
             r_codon = cost_stride - 1;
-            printf ("*** NIL CODON *** %ld %ld %ld %ld\n", reference[ rpos - 3 ], reference[ rpos - 2], reference[ rpos - 1], r_codon);
+            fprintf (stderr, "*** NIL CODON *** %ld %ld %ld %ld\n", reference[ rpos - 3 ], reference[ rpos - 2], reference[ rpos - 1], r_codon);
         }
     }
 
@@ -647,7 +647,7 @@ double AlignStrings( char const * r_str
 
     if ( do_codon && ( r_len % 3 != 0 ) ) {
         hy_global::HandleApplicationError ( "Reference sequence length not divisible by 3 in AlignStrings (codon mode)" );
-        return -A_LARGE_NUMBER;
+        return -INFINITY;
     }
 
     // handle some corner cases,
@@ -987,7 +987,7 @@ double AlignStrings( char const * r_str
 
                     // if anything drops below 0, something bad happened
                     if ( i < 0 || j < 0 ) {
-                        return -A_LARGE_NUMBER;
+                        return -INFINITY;
                     }
 
                     // handle the affine cases

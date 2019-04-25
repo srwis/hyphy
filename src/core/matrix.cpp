@@ -1022,8 +1022,8 @@ HBLObjectRef   _Matrix::Eigensystem (void) const {
                 cpy->EigenDecomp (*rl,*im);
                 DeleteObject (cpy);
 
-                return & ((*new _AssociativeList) << _associative_list_key_value {"0", rl}
-                       << _associative_list_key_value {"1", im});
+                return & ((*new _AssociativeList) < _associative_list_key_value {"0", rl}
+                       < _associative_list_key_value {"1", im});
             }
         }
     }
@@ -1727,7 +1727,7 @@ HBLObjectRef _Matrix::ExecuteSingleOp (long opCode, _List* arguments, _hyExecuti
       WarnNotDefined (this, opCode,context);
   }
 
-  return nil;
+   return new _MathObject;
 }
 
 //_____________________________________________________________________________________________
@@ -1838,19 +1838,19 @@ bool    _Matrix::AmISparseFast (_Matrix& whereTo) {
 //_____________________________________________________________________________________________
 
 bool    _Matrix::IsReversible(_Matrix* freqs) {
-    if (hDim != vDim || (freqs && freqs->hDim * freqs->vDim != hDim)
-            || (storageType != 1 && storageType != 2) ||
-            (freqs && freqs->storageType != 1 && freqs->storageType != 2)) {
+    if (!is_square() || (freqs && freqs->GetHDim () * freqs->GetVDim () != GetHDim())
+            || (!is_numeric() && !is_expression_based() ) ||
+            (freqs && !freqs->is_numeric() && !freqs->is_expression_based())) {
         return false;
     }
 
-    bool   needAnalytics = storageType == 2 || (freqs && freqs->storageType == 2);
+    bool   needAnalytics = is_expression_based() || (freqs && freqs->is_expression_based());
     if (needAnalytics) {
         if (freqs) {
             for (long r = 0; r < hDim; r++)
                 for (long c = r+1; c < hDim; c++) {
                     bool compResult = true;
-                    if (storageType == 2) {
+                    if (is_expression_based()) {
                         _Formula* rc = GetFormula(r,c),
                                   * cr = GetFormula(c,r);
 
@@ -1862,7 +1862,7 @@ bool    _Matrix::IsReversible(_Matrix* freqs) {
                                 HBLObjectRef     tr = nil,
                                               tc = nil;
 
-                                if (freqs->storageType == 2) {
+                                if (freqs->is_expression_based()) {
                                     if (freqs->GetFormula(r,0)) {
                                         tr = freqs->GetFormula(r,0)->ConstructPolynomial();
                                         if (tr) {
@@ -1887,9 +1887,17 @@ bool    _Matrix::IsReversible(_Matrix* freqs) {
                                 }
                                 if (tr && tc) {
                                     _Polynomial        * rcpF = (_Polynomial*)rcp->Mult(tr),
-                                                         * crpF = (_Polynomial*)crp->Mult(tc);
+                                                       * crpF = (_Polynomial*)crp->Mult(tc);
 
                                     compResult         = rcpF->Equal(crpF);
+                                    
+                                    /*if (!compResult) {
+                                        ObjectToConsole(rcpF);
+                                        NLToConsole();
+                                        ObjectToConsole(crpF);
+                                        NLToConsole();
+                                    }*/
+                                    
                                     DeleteObject (rcpF);
                                     DeleteObject (crpF);
                                 } else {
@@ -1980,7 +1988,7 @@ void    _Matrix::CheckIfSparseEnough(bool force) {
                     tempData[theIndex[i]]=((hyPointer*)theData)[i];
                 }
             }
-            delete[] theData;
+            MatrixMemFree( theData);
             theData = (hyFloat*)tempData;
        } else {
             //objects
@@ -1993,12 +2001,12 @@ void    _Matrix::CheckIfSparseEnough(bool force) {
                     tempData [k] = ((hyFloat*)theData) [i];
                 }
             }
-           delete[] theData;
-           theData = (hyFloat*)tempData;
+            MatrixMemFree( theData);
+            theData = (hyFloat*)tempData;
 
         }
         lDim = square_dimension;
-        delete[] theIndex;
+        MatrixMemFree( theIndex);
         theIndex = nil;
     }
 }
@@ -2653,7 +2661,7 @@ void        _Matrix::FillInList (_List& fillMe, bool convert_numbers) const {
                   if (entryFla) {
                       HBLObjectRef computedValue = FetchObjectFromFormulaByType (*entryFla, STRING);
                       if (computedValue) {
-                          fillMe && ((_FString*)computedValue)->get_str();
+                          fillMe < new _StringBuffer (((_FString*)computedValue)->get_str());
                       } else {
                         fillMe.Clear();
                         return;
@@ -3845,7 +3853,7 @@ hyFloat  _Matrix::MaxElement  (char runMode, long* indexStore) const {
              doMaxElement = runMode == 0 || runMode == 3;
 
         if (doMaxElement) {
-            max = -A_LARGE_NUMBER;
+            max = -INFINITY;
         }
 
         if (theIndex) {
@@ -4280,7 +4288,7 @@ void    _Matrix::CompressSparseMatrix (bool transpose, hyFloat * stash)
 
 //_____________________________________________________________________________________________
 
-_Matrix*    _Matrix::Exponentiate (void) {
+_Matrix*    _Matrix::Exponentiate (hyFloat scale_to, bool check_transition) {
     // find the maximal elements of the matrix
     
     try {
@@ -4303,7 +4311,7 @@ _Matrix*    _Matrix::Exponentiate (void) {
             RowAndColumnMax (max, t, stash);
             max *= t;
             if (max > .1) {
-                max             = sqrt (10.*max);
+                max             = scale_to*sqrt (10.*max);
                 power2          = (long)((log (max)/log ((hyFloat)2.0)))+1;
                 max             = exp (power2 * log ((hyFloat)2.0));
                 (*this)         *= 1.0/max;
@@ -4321,7 +4329,7 @@ _Matrix*    _Matrix::Exponentiate (void) {
         }
         
         _Matrix *result = new _Matrix(hDim, vDim , is_polynomial(), !is_polynomial()),
-        temp    (*this);
+                temp    (*this);
         
         // put ones on the diagonal
         
@@ -4421,22 +4429,65 @@ _Matrix*    _Matrix::Exponentiate (void) {
             result->Transpose();
         }
         
+       
+        _Matrix stash_mx (*result);
         
         for (long s = 0; s<power2; s++) {
 #ifndef _OPENMP
             squarings_count++;
 #endif
+           /* for (i = 0; i < hDim; i++) {
+                if ((*result)(i,i) > 1.) {
+                    printf ("\n%ld\n", s);
+                    ObjectToConsole(result);
+                    NLToConsole();
+                    ObjectToConsole(&stash_mx);
+                    NLToConsole();
+                    _Matrix cp = *this;
+                    cp.CheckIfSparseEnough(true);
+                    ObjectToConsole(&cp);
+                    abort();
+                }
+            }*/
+            
             if (result->Sqr(stash) < DBL_EPSILON * 1.e3) {
                 break;
             }
         }
         delete [] stash;
+        
+        if (check_transition) {
+            bool pass = true;
+            if (result->is_dense()) {
+                for (unsigned long r = 0L; r < result->lDim; r += result->vDim) {
+                    if (result->theData[r] > 1.) {
+                        pass = false;
+                        break;
+                    }
+                }
+            } else {
+                for (unsigned long r = 0L; r < result->hDim; r ++) {
+                    if ((*result)(r,r) > 1.) {
+                        pass = false;
+                        break;
+                    }
+                }
+            }
+            if (!pass) {
+                if (scale_to < 1.e100) {
+                    DeleteObject (result);
+                    return this->Exponentiate(scale_to * 100, true);
+                }
+                HandleApplicationError("Failed to compute a valid transition matrix; this is usually caused by ill-conditioned rate matrices (e.g. very large rate values)");
+            }
+        }
+        
         return result;
     }
     catch (const _String e) {
         HandleApplicationError(e);
-        
     }
+    
     return new _Matrix;
     
 }
@@ -7425,120 +7476,143 @@ _Matrix* _Matrix::NeighborJoin (bool methodIndex)
 
 //_____________________________________________________________________________________________
 _Matrix*        _Matrix::MakeTreeFromParent (long specCount) {
-    if (hDim == 0 || vDim == 0) {
+    if (is_empty()) {
         return new _Matrix;
     }
+    
+    try {
 
-    if(specCount<0) {
-        HandleApplicationError (_String ("Parameter to ") & __PRETTY_FUNCTION__ & " must be greater than or equal to 0");
-        return new _Matrix (1,1,false,true);
-    }
-
-    _Matrix     *tree = new _Matrix (2*(specCount+1),5,false,true),
-    CI  (2*(specCount+1),1,false,true);
-
-
-    for (long kk = 0; kk < specCount-1; kk++) {
-        tree->theData[kk*5+4] = -1;
-    }
-
-    long cladesMade = 0;
-
-    for (long nodeID2 = 0; nodeID2 < specCount; nodeID2 ++) {
-        long        nodeID       = nodeID2,
-                    nodeDepth    = 0,
-                    saveNodeID   = nodeID,
-                    parentID     = theData[nodeID*3],
-                    layoutOffset = cladesMade,
-                    m,
-                    n;
-
-        while (parentID>=0) {
-            n = tree->theData[(parentID-specCount)*5+4];
-            if (n >= 0) {
-                layoutOffset = n+tree->theData[(parentID-specCount)*5+3];
-                break;
-            }
-            parentID  = theData[parentID*3];
+        if (specCount<0L ) {
+            throw (_String ("Parameter to ") & __PRETTY_FUNCTION__ & " must be greater than or equal to 0");
+        }
+        
+        if (GetVDim () != 3) {
+            throw (_String ("Expected a matrix with 3 columns"));
+        }
+        if (GetHDim () <= 2*specCount + 1) {
+            throw (_String ("Expected a matrix with at least ") & (2*specCount + 1) & " columns");
         }
 
-        parentID   = theData[nodeID*3];
+        const long result_rows = 2*(specCount+1);
+        _Matrix     *tree = new _Matrix (result_rows,5,false,true),
+        CI  (2*(specCount+1),1,false,true);
 
-        while (parentID>=0) {
-            n = parentID-specCount;
-            m = theData[nodeID*3+2];
 
-            if (tree->theData[n*5+4] < 0)
-                /* this node hasn't been laid out yet */
-            {
-                if (theData[parentID*3]>=0) {
-                    tree->theData[n*5+4] = layoutOffset; /* where the layout for the clade begins */
-                    tree->theData[n*5+3]   = m; /* offset for that layout */
-                }
-
-                m += layoutOffset - 1;
-
-                tree->theData[m*5]   = nodeID;
-                tree->theData[m*5+2] = theData[nodeID*3+1];
-
-                CI.theData[nodeID] = m;
-            } else
-                /* it has been laid out */
-            {
-                m += tree->theData[n*5+3]+tree->theData[n*5+4] - 1;
-
-                tree->theData[m*5]   = nodeID;
-                tree->theData[m*5+2] = theData[nodeID*3+1];
-
-                tree->theData[n*5+3] = m + theData[nodeID*3+2];
-
-                CI.theData[nodeID]   = m;
-                nodeDepth ++;
-
-                break;
-            }
-            nodeDepth++;
-            nodeID    = parentID;
-            parentID  = theData[nodeID*3];
+        for (long kk = 0; kk < specCount-1; kk++) {
+            tree->theData[kk*5+4] = -1; // set parent records to
         }
 
-        /* update levels of nodes */
+        long cladesMade = 0L;
 
-        if (parentID<0) {
-            nodeID   = saveNodeID;
-            parentID = theData[nodeID*3];
+        for (long nodeID2 = 0L; nodeID2 < specCount; nodeID2 ++) {
+            long        nodeID       = nodeID2,
+                        nodeDepth    = 0,
+                        saveNodeID   = nodeID,
+                        parentID     = theData[nodeID*3],
+                        layoutOffset = cladesMade,
+                        m,
+                        n;
 
             while (parentID>=0) {
-                m = CI.theData[nodeID];
-                tree->theData[m*5+1] = nodeDepth;
-                nodeDepth --;
-                saveNodeID = nodeID;
-                nodeID     = parentID;
-                parentID   = theData[nodeID*3];
+                long idx = parentID-specCount;
+                if (idx < 0 || idx >= result_rows) {
+                    throw (_String ("Invalid parent index in row ") & nodeID2);
+                }
+                n = tree->theData[idx*5+4];
+                if (n >= 0) {
+                    layoutOffset = n+tree->theData[idx*5+3];
+                    break;
+                }
+                parentID  = theData[parentID*3];
             }
 
-            cladesMade += theData[3*saveNodeID+2];
-        } else {
-            m = CI.theData[parentID];
+            parentID   = theData[nodeID*3];
 
-            n = tree->theData[m*5+1];/* depth of the parent */
+            while (parentID>=0) {
+                n = parentID-specCount;
+                if (n < 0 || n >= result_rows) {
+                    throw (_String ("Invalid parent index in row ") & nodeID);
+                }
+                m = theData[nodeID*3+2];
 
-            nodeID   = saveNodeID;
+                if (tree->theData[n*5+4] < 0)
+                    /* this node hasn't been laid out yet */
+                {
+                    if (theData[parentID*3]>=0) {
+                        tree->theData[n*5+4] = layoutOffset; /* where the layout for the clade begins */
+                        tree->theData[n*5+3]   = m; /* offset for that layout */
+                    }
 
-            while (nodeDepth >= 0) {
-                m = CI.theData[nodeID];
+                    m += layoutOffset - 1;
 
-                tree->theData[m*5+1] = nodeDepth+n;
+                    tree->theData[m*5]   = nodeID;
+                    tree->theData[m*5+2] = theData[nodeID*3+1];
 
-                nodeDepth --;
-                nodeID  = theData[nodeID*3];
+                    CI.theData[nodeID] = m;
+                } else
+                    /* it has been laid out */
+                {
+                    m += tree->theData[n*5+3]+tree->theData[n*5+4] - 1;
+
+                    tree->theData[m*5]   = nodeID;
+                    tree->theData[m*5+2] = theData[nodeID*3+1];
+
+                    tree->theData[n*5+3] = m + theData[nodeID*3+2];
+
+                    CI.theData[nodeID]   = m;
+                    nodeDepth ++;
+
+                    break;
+                }
+                nodeDepth++;
+                nodeID    = parentID;
+                parentID  = theData[nodeID*3];
+            }
+
+            /* update levels of nodes */
+
+            if (parentID<0) {
+                nodeID   = saveNodeID;
+                parentID = theData[nodeID*3];
+
+                while (parentID>=0) {
+                    m = CI.theData[nodeID];
+                    if (m < 0 || m >= result_rows) {
+                        throw (_String ("Invalid parent index in row ") & nodeID);
+                    }
+                    tree->theData[m*5+1] = nodeDepth;
+                    nodeDepth --;
+                    saveNodeID = nodeID;
+                    nodeID     = parentID;
+                    parentID   = theData[nodeID*3];
+                }
+
+                cladesMade += theData[3*saveNodeID+2];
+            } else {
+                m = CI.theData[parentID];
+
+                n = tree->theData[m*5+1];/* depth of the parent */
+
+                nodeID   = saveNodeID;
+
+                while (nodeDepth >= 0) {
+                    m = CI.theData[nodeID];
+
+                    tree->theData[m*5+1] = nodeDepth+n;
+
+                    nodeDepth --;
+                    nodeID  = theData[nodeID*3];
+                }
             }
         }
+        tree->theData[cladesMade*5]      = 2*specCount-2;
+        tree->theData[cladesMade*5+1]    = 0;
+        tree->theData[(specCount-2)*5+4] = 0;
+        return tree;
+    } catch (const _String& error) {
+        HandleApplicationError(error);
+        return new _Matrix (1,1,false,true);
     }
-    tree->theData[cladesMade*5]      = 2*specCount-2;
-    tree->theData[cladesMade*5+1]    = 0;
-    tree->theData[(specCount-2)*5+4] = 0;
-    return tree;
 }
 
 

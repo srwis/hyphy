@@ -280,12 +280,12 @@ void    MPISendString       (_String const& theMessage, long destID, bool isErro
 
     while (messageLength-transferCount>MPI_SEND_CHUNK) {
         printf("%s",theMessage.get_str());
-        ReportMPIError(MPI_Send(theMessage.get_str()+transferCount, MPI_SEND_CHUNK, MPI_CHAR, destID, HYPHY_MPI_STRING_TAG, MPI_COMM_WORLD),true);
+        ReportMPIError(MPI_Send((void*)(theMessage.get_str()+transferCount), MPI_SEND_CHUNK, MPI_CHAR, destID, HYPHY_MPI_STRING_TAG, MPI_COMM_WORLD),true);
         transferCount += MPI_SEND_CHUNK;
     }
 
     if (messageLength-transferCount) {
-        ReportMPIError(MPI_Send(theMessage.get_str()+transferCount, messageLength-transferCount, MPI_CHAR, destID, HYPHY_MPI_STRING_TAG, MPI_COMM_WORLD),true);
+        ReportMPIError(MPI_Send((void*)(theMessage.get_str()+transferCount), messageLength-transferCount, MPI_CHAR, destID, HYPHY_MPI_STRING_TAG, MPI_COMM_WORLD),true);
     }
 
     //ReportMPIError(MPI_Send(&messageLength, 1, MPI_LONG, destID, HYPHY_MPI_DONE_TAG, MPI_COMM_WORLD),true);
@@ -441,6 +441,9 @@ hyFloat  ProcessNumericArgument (_String* data, _VariableContainer const* theP, 
 }
 
 //____________________________________________________________________________________
+
+/** This function returns expects that the caller will handle reference counting on the returned object;
+    it will be returned with +1 reference, i.e. it needs to be deleted / managed by the caller */
 
 HBLObjectRef   ProcessAnArgumentByType (_String const* expression, _VariableContainer const* theP, long objectType, _ExecutionList* currentProgram) {
     _String   errMsg;
@@ -1057,7 +1060,7 @@ void    _ExecutionList::ReportAnExecutionError (_String errMsg, bool doCurrentCo
 }
 
 //____________________________________________________________________________________
-_String*    _ExecutionList::FetchFromStdinRedirect (_String const * dialog_tag, bool handle_multi_choice) {
+_String*    _ExecutionList::FetchFromStdinRedirect (_String const * dialog_tag, bool handle_multi_choice, bool do_echo) {
 // grab a string from the front of the input queue
 // complain if nothing is left
     if (! (has_stdin_redirect() || has_keyword_arguments())) {
@@ -1071,6 +1074,18 @@ _String*    _ExecutionList::FetchFromStdinRedirect (_String const * dialog_tag, 
     
     HBLObjectRef user_argument = nil;
     _List        ref_manager;
+    _String*     kwarg_used = nil;
+    
+    auto echo_argument = [] (_String const * kwarg, _String const& value) -> void {
+        if (kwarg) {
+            bool do_markdown = hy_env :: EnvVariableTrue(hy_env :: produce_markdown_output);
+            if (do_markdown) {
+                NLToConsole(); BufferToConsole(">"); StringToConsole(*kwarg); BufferToConsole( " –> "); BufferToConsole(value); NLToConsole();
+            } else {
+                StringToConsole(*kwarg); BufferToConsole( ": "); BufferToConsole(value); NLToConsole();
+            }
+        }
+    };
     
     try {
         if (has_keyword_arguments()) {
@@ -1093,11 +1108,13 @@ _String*    _ExecutionList::FetchFromStdinRedirect (_String const * dialog_tag, 
 
                 if (user_argument) { // user argument provided
                     user_argument -> AddAReference();
-                    kwargs->DeleteByKey(*(_String*)current_tag->GetItem(0));
+                    kwarg_used = (_String*)current_tag->GetItem(0);
+                    kwargs->DeleteByKey(*kwarg_used);
                     ref_manager < user_argument;
                 } else { // see if there are defaults
                     if (current_tag->countitems() > 2 && ! ignore_kw_defaults) {
                         _String * default_value = (_String*)current_tag->GetItem(2);
+                        kwarg_used = (_String*)current_tag->GetItem(0);
                         if (default_value) {
                             user_argument = new _FString (*(_String*)current_tag->GetItem(2));
                             ref_manager < user_argument;
@@ -1114,9 +1131,11 @@ _String*    _ExecutionList::FetchFromStdinRedirect (_String const * dialog_tag, 
     
     if (user_argument) {
         if (user_argument->ObjectClass() == STRING) {
+            echo_argument (kwarg_used, ((_FString*)user_argument)->get_str());
             return new _String (((_FString*)user_argument)->get_str());
         } else {
             if (handle_multi_choice) {
+                echo_argument (kwarg_used, _String ((_String*)user_argument->toStr()));
                 user_argument->AddAReference();
                 throw (user_argument);
             } else {
@@ -1130,10 +1149,14 @@ _String*    _ExecutionList::FetchFromStdinRedirect (_String const * dialog_tag, 
         if (d<0) {
             throw _String ("Ran out of input in buffer during a redirected standard input read.");
         }
+
         _String *sendBack = (_String*)stdinRedirect->GetXtra (d);
+        //printf ("Consumed stdin redrect %ld => %s\n", d, sendBack->get_str());
         sendBack->AddAReference();
-        //StringToConsole(*sendBack);
-        //NLToConsole();
+        if (do_echo) {
+            StringToConsole(*sendBack);
+            NLToConsole();
+        }
         stdinRedirect->Delete ((*(_List*)stdinRedirect->dataList)(d),true);
         return sendBack;
     }
@@ -1164,8 +1187,17 @@ void _ExecutionList::BuildListOfDependancies   (_AVLListX & collection, bool rec
 
 //____________________________________________________________________________________
 
-_StringBuffer const       _ExecutionList::GenerateHelpMessage(void)  const {
+_StringBuffer const       _ExecutionList::GenerateHelpMessage(_AVLList * scanned_functions)  const {
     _StringBuffer help_message;
+    
+    _List ref_manager;
+    bool  nested = true;
+    if (!scanned_functions) {
+        _List * _aux_list = new _List;
+        scanned_functions = new _AVLList (_aux_list);
+        ref_manager < _aux_list < scanned_functions;
+        nested = false;
+    }
     
     auto simplify_string = [] (_String const * s) -> const _String {
         _String sc (*s);
@@ -1175,22 +1207,48 @@ _StringBuffer const       _ExecutionList::GenerateHelpMessage(void)  const {
         return sc & " [computed at run time]";
     };
 
-    ForEach ([&help_message, simplify_string] (BaseRef command, unsigned long index) -> void {
+    ForEach ([&help_message, simplify_string, this, scanned_functions] (BaseRef command, unsigned long index) -> void {
         _ElementaryCommand * this_command = (_ElementaryCommand * )command;
         if (this_command->code == HY_HBL_COMMAND_KEYWORD_ARGUMENT) {
-            _String * def_value = this_command->GetIthParameter(2L, false);
-            help_message << simplify_string(this_command->GetIthParameter(0L)) << (def_value == nil ? " [required]" : "") << '\n'
+            _String * def_value = this_command->GetIthParameter(2L, false),
+                    * applies_to = this_command->GetIthParameter(3L, false);
+
+            if (def_value && (*def_value == kNoneToken || *def_value == kNullToken)) {
+                def_value = nil;
+            }
+            
+            help_message << simplify_string(this_command->GetIthParameter(0L)) << (def_value == nil ? (applies_to ? " [conditionally required]" : " [required]"): "") << '\n'
                          << '\t' << simplify_string(this_command->GetIthParameter(1L)) << '\n';
+            
             
             if (def_value) {
                 help_message << "\tdefaut value: " << simplify_string(def_value) << '\n';
             }
+             if (applies_to) {
+                help_message << "\tapplies to: " << simplify_string(applies_to) << '\n';
+            }
             help_message << '\n';
+        } else {
+            if (this_command->code == HY_HBL_COMMAND_FORMULA) {
+                _List      hbl_functions;
+                _AVLListX other_functions (&hbl_functions);
+                this_command->BuildListOfDependancies(other_functions, true, *this);
+                
+                for (AVLListXIteratorKeyValue function_iterator : AVLListXIterator (&other_functions)) {
+                    _String * function_name = (_String *)other_functions.Retrieve (function_iterator.get_index());
+                    if (scanned_functions->Insert (new _String (*function_name),0,true, true) >= 0) {
+                        long idx = FindBFFunctionName(*function_name);
+                        if (idx >= 0) {
+                            help_message << GetBFFunctionBody(idx).GenerateHelpMessage(scanned_functions);
+                        }
+                    }
+                }
+            }
         }
         
     });
     
-    if (help_message.empty()) {
+    if (help_message.empty() && !nested) {
         help_message << "No annotated keyword arguments are available for this analysis\n";
     }
     
@@ -2042,8 +2100,17 @@ BaseRef   _ElementaryCommand::toStr      (unsigned long) {
     };
 
     auto procedure = [&] (long i) -> _String const {
-        return _StringBuffer (_HY_ValidHBLExpressions.RetrieveKeyByPayload(i))
-                << _String ((_String*)parameters.Join (", ")) << ");";
+        
+        _String command (_HY_ValidHBLExpressions.RetrieveKeyByPayload(i));
+        
+        if (command.EndsWith('(')) {
+            return _StringBuffer (command)
+            << _String ((_String*)parameters.Join (", ")) << ");";
+
+        } else {
+            return _StringBuffer (command)
+                        << '(' << _String ((_String*)parameters.Join (", ")) << ");";
+        }
     };
 
     auto assignment = [&] (long i, const _String& call) -> _String const {
@@ -2285,9 +2352,10 @@ void      _ElementaryCommand::ExecuteCase0 (_ExecutionList& chain) {
           _Formula f,
                    f2;
 
-          _String* theFla     = (_String*)parameters(0);
+          _String* theFla     = (_String*)parameters(0),
+                   err_msg;
 
-          _FormulaParsingContext fpc (nil, chain.nameSpacePrefix);
+          _FormulaParsingContext fpc (&err_msg, chain.nameSpacePrefix);
 
           long     parseCode = Parse(&f,(*theFla),fpc,&f2);
           
@@ -2312,7 +2380,7 @@ void      _ElementaryCommand::ExecuteCase0 (_ExecutionList& chain) {
                   return;
               }
           } else {
-            errMsg = new _String ("Error compiling the statement: ");
+             errMsg = new _String (_String ("Parsing error ") & _String (err_msg.Enquote('(',')') & " while compiling the statement: "));
             throw 0;
           }
       }
@@ -2458,7 +2526,7 @@ void      _ElementaryCommand::ExecuteCase5 (_ExecutionList& chain) {
             }
             ds = lastNexusDataMatrix;
         } else {
-            ProcessFileName(fName, false,true,(hyPointer)chain.nameSpacePrefix);
+            ProcessFileName(fName, false,true,(hyPointer)chain.nameSpacePrefix, false, &chain, true);
             if (terminate_execution) {
                 return;
             }
@@ -2468,7 +2536,7 @@ void      _ElementaryCommand::ExecuteCase5 (_ExecutionList& chain) {
             if (df==nil) {
                 // try reading this file as a string formula
                 fName = GetStringFromFormula ((_String*)parameters(1),chain.nameSpacePrefix);
-                ProcessFileName(fName, false,false,(hyPointer)chain.nameSpacePrefix);
+                ProcessFileName(fName, false,false,(hyPointer)chain.nameSpacePrefix, false, &chain, true);
 
                 if (terminate_execution) {
                     return;
@@ -3021,9 +3089,6 @@ void      _ElementaryCommand::ExecuteCase52 (_ExecutionList& chain) {
         SetStatusLine ("Simulating Data");
         { // lf must be deleted before the referenced datafilters
             _LikelihoodFunction lf (filter_specification, nil);
-            if (terminate_execution) {
-                return;
-            }
             lf.Simulate (*sim_dataset, exclusions, category_values, category_names, root_states, do_internals?(main_file?&spool_file:&kEmptyString):nil);
             SetStatusLine ("Idle");
         }
@@ -3124,11 +3189,12 @@ bool      _ElementaryCommand::Execute    (_ExecutionList& chain) {
         }
 
         if (!tr) {
+            DeleteObject (tr);
             HandleApplicationError("Illegal right hand side in call to Tree id = ...; it must be a string, a Newick tree spec or a topology");
             return false;
         }
 
-        if (leftOverVars.lLength) { // mod 02/03/2003 - the entire "if" block
+        if (leftOverVars.nonempty()) { // mod 02/03/2003 - the entire "if" block
             _SimpleList indep, dep, holder;
             {
                 _AVLList    indepA (&indep),
@@ -3161,9 +3227,8 @@ bool      _ElementaryCommand::Execute    (_ExecutionList& chain) {
             }
 
             tr->Clear();
-
+ 
         }
-        SetStatusLine ("Idle");
 
     }
     break;
@@ -3822,6 +3887,14 @@ long _ElementaryCommand::ExtractConditions (_String const& source, long start_at
         double_quote = 2
     } quote_type = normal_text;
 
+    auto strip_last_space = [] (_String const& source, long from, long to) -> _String* {
+        if (to > from) {
+            if (source.char_at(to-1L) == ' ') {
+                return new _String (source, from, to-2L);
+            }
+        }
+        return new _String (source, from, to-1L);
+    };
 
     for (; index<source.length(); index++) {
         char c = source.char_at (index);
@@ -3863,14 +3936,14 @@ long _ElementaryCommand::ExtractConditions (_String const& source, long start_at
                 continue;
             }
 
-            receptacle < new _String (source,last_delim,index-1);
+            receptacle < strip_last_space (source,last_delim,index);
             last_delim = index+1;
             continue;
         }
     }
 
     if (include_empty_conditions || last_delim <= index-1) {
-        receptacle < new _String(source,last_delim,index-1);
+        receptacle < strip_last_space (source,last_delim,index);
     }
     return index+1L;
 }
@@ -4539,7 +4612,7 @@ bool    _ElementaryCommand::ConstructFunction (_String&source, _ExecutionList& c
     _String*    funcID  = new _String(source.Cut (mark1,mark2-1));
 
     if (!funcID->IsValidIdentifier(fIDAllowCompound)) {
-      HandleApplicationError      (_String("Not a valid function/namespace identifier '") & *funcID & "'");
+      HandleApplicationError      (_String("Not a valid function/namespace identifier '") & _String(funcID) & "'");
       return false;
     }
 

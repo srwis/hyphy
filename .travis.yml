@@ -1,32 +1,32 @@
 # OpenMP projects should set the environment variable OMP_NUM_THREADS to a reasonably small value (say, 4). 
-dist: trusty
+dist: xenial
 sudo : false
 
-notifications:
-    slack: veg-igem:rqQd95zjTuZoRNElekQx2CLf
-    email:
-        recipients:
-            - spond@temple.edu
-            - steven@stevenweaver.org
-        on_success: change
-        on_failure: always
+
 
 branches:
   only:
     - master
     - beta
     - develop
+    - origin/SelAn
 
 env:
-  - METHOD_TEST=tests/hbltests/libv3/SLAC.wbf
-  - METHOD_TEST=tests/hbltests/libv3/SLAC-partitioned.wbf
-  - METHOD_TEST=tests/hbltests/libv3/FEL.wbf
-  - METHOD_TEST=tests/hbltests/libv3/MEME.wbf
-  - METHOD_TEST=tests/hbltests/libv3/MEME-partitioned.wbf
-  - METHOD_TEST=tests/hbltests/libv3/FUBAR.wbf
-  - METHOD_TEST=tests/hbltests/libv3/RELAX.wbf
-  - METHOD_TEST=tests/hbltests/libv3/aBSREL.wbf
-  - METHOD_TEST=tests/hbltests/libv3/BUSTED.wbf
+  - envSpecificTest="bash ./test_kwargs.sh"
+  - envSpecificTest="bash ./run_unit_tests.sh"
+  - envSpecificTest="export PATH=$PATH:$(pwd); cd; git clone https://gitlab.com/rdvelazquez/testiphy.git; cd testiphy; ./testiphy HYPHYMP"
+  - envSpecificTest="./HYPHYMP LIBPATH=`pwd`/res/ tests/hbltests/libv3/SLAC.wbf"
+  - envSpecificTest="./HYPHYMP SLAC --alignment ./tests/hbltests/libv3/data/partitioned.nex --branches Internal"
+  - envSpecificTest="./HYPHYMP FEL --alignment ./tests/hbltests/libv3/data/CD2.nex"
+  - envSpecificTest="./HYPHYMP MEME --alignment ./tests/hbltests/data/CD2.nex"
+  - envSpecificTest="./HYPHYMP MEME --alignment ./tests/hbltests/libv3/data/CD2.nex --branches GROUP1"
+  - envSpecificTest="./HYPHYMP FUBAR --alignment ./tests/hbltests/libv3/data/CD2.nex"
+  - envSpecificTest="./HYPHYMP LIBPATH=`pwd`/res/ tests/hbltests/libv3/RELAX.wbf"
+  - envSpecificTest="./HYPHYMP LIBPATH=`pwd`/res/ tests/hbltests/libv3/aBSREL.wbf"
+  - envSpecificTest="./HYPHYMP BUSTED --alignment ./tests/hbltests/data/CD2.nex --srv No --branches Internal"
+  - envSpecificTest="./HYPHYMP BGM --alignment ./tests/hbltests/data/CD2.nex"
+  - envSpecificTest="./hyphy fade --alignment ./tests/hbltests/data/CD2_AA.fna"
+
 
 language: c++
 compiler: 
@@ -45,18 +45,8 @@ addons:
 install:
   - if [ "$CXX" = "g++" ]; then export CXX="g++-6" CC="gcc-6"; fi
   - cmake . 
-  - make HYPHYMP
+  - make
 
 script: 
   - export OMP_NUM_THREADS=4
-  - ./HYPHYMP LIBPATH=`pwd`/res/ tests/hbltests/libv3/math.bf
-  - ./HYPHYMP LIBPATH=`pwd`/res/ tests/hbltests/libv3/iofunctions.bf
-  - ./HYPHYMP LIBPATH=`pwd`/res/ tests/hbltests/libv3/utilityfunctions.bf
-  - ./HYPHYMP LIBPATH=`pwd`/res/ $METHOD_TEST
-  - bash ./run_unit_tests.sh
-  # testiphy
-  - export PATH=$PATH:$(pwd)
-  - cd
-  - git clone https://gitlab.com/rdvelazquez/testiphy.git
-  - cd testiphy
-  - ./testiphy HYPHYMP
+  - travis_wait 60 eval $envSpecificTest

@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.12)
 project(HyPhy)
 cmake_policy(VERSION 3.0.0)
-cmake_policy(SET CMP0026 OLD)
+#cmake_policy(SET CMP0026 OLD)
+#cmake_policy(SET CMP0004 OLD)
+
 
 set(CMAKE_CONFIGURATION_TYPES Release)
 
@@ -180,11 +182,7 @@ endif(NOT DEFINED DEFAULT_WARNING_FLAGS)
 #-------------------------------------------------------------------------------
 # OpenMP support
 #-------------------------------------------------------------------------------
-find_package(OpenMP)
-
-if(NOT ${OPENMP_FOUND})
-    set(OpenMP_CXX_FLAGS "")
-endif(NOT ${OPENMP_FOUND})
+find_package(OpenMP REQUIRED)
 
 #-------------------------------------------------------------------------------
 # default installation prefix
@@ -206,7 +204,11 @@ endif(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 #-------------------------------------------------------------------------------
 find_package(CURL)
 if(${CURL_FOUND} AND NOT APPLE)
-    set(DEFAULT_LIBRARIES dl pthread crypto curl ssl)
+    if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+        set(DEFAULT_LIBRARIES pthread crypto curl ssl)
+    else(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+        set(DEFAULT_LIBRARIES dl pthread crypto curl ssl)
+    endif(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
     add_definitions (-D__HYPHYCURL__)
 endif(${CURL_FOUND} AND NOT APPLE)
 
@@ -286,17 +288,17 @@ install(DIRECTORY res/ DESTINATION lib/hyphy)
 # HYPHYMP target
 #-------------------------------------------------------------------------------
 add_executable(
-    HYPHYMP
-    EXCLUDE_FROM_ALL
+    hyphy
     ${SRC_COMMON} ${SRC_UNIXMAIN}
 )
 
-target_link_libraries(HYPHYMP ${DEFAULT_LIBRARIES})
 
-add_custom_target(MP DEPENDS HYPHYMP)
+target_link_libraries(hyphy PRIVATE ${DEFAULT_LIBRARIES} OpenMP::OpenMP_CXX)
+
+add_custom_target(MP DEPENDS hyphy)
 
 install(
-    TARGETS HYPHYMP
+    TARGETS hyphy
     RUNTIME DESTINATION bin
     OPTIONAL
 )
@@ -361,7 +363,7 @@ if(${MPI_FOUND})
 
     include_directories(${MPI_INCLUDE_PATH})
 
-    target_link_libraries(HYPHYMPI ${DEFAULT_LIBRARIES} ${MPI_LIBRARIES})
+    target_link_libraries(HYPHYMPI ${DEFAULT_LIBRARIES} ${MPI_LIBRARIES} OpenMP::OpenMP_CXX)
 
     install(
         TARGETS HYPHYMPI
@@ -395,7 +397,7 @@ add_executable(
     ${SRC_COMMON} ${SRC_UNIXMAIN}
 )
 
-target_link_libraries(HYPHYDEBUG ${DEFAULT_LIBRARIES})
+target_link_libraries(HYPHYDEBUG ${DEFAULT_LIBRARIES} OpenMP::OpenMP_CXX)
 add_custom_target(DEBUG DEPENDS HYPHYDEBUG)
 
 
@@ -403,7 +405,7 @@ add_custom_target(DEBUG DEPENDS HYPHYDEBUG)
 set_target_properties(
     HYPHYDEBUG
     PROPERTIES
-    COMPILE_FLAGS "${DEFAULT_COMPILE_FLAGS} ${DEFAULT_DEBUG_WARNING_FLAGS} ${OpenMP_CXX_FLAGS} -g -fsanitize=address -O0 "
+    COMPILE_FLAGS "${DEFAULT_COMPILE_FLAGS} ${DEFAULT_DEBUG_WARNING_FLAGS} ${OpenMP_CXX_FLAGS} -g -fsanitize=address -fsanitize=leak -O0 "
     LINK_FLAGS "${DEFAULT_COMPILE_FLAGS} ${OpenMP_CXX_FLAGS} -g -fsanitize=address -O0 "
 )
 
@@ -439,18 +441,18 @@ set_target_properties(
 
 if(UNIX)
     set_property(
-        TARGET HYPHYMP HYPHYGTEST HYPHYDEBUG
+        TARGET hyphy HYPHYGTEST HYPHYDEBUG
         APPEND PROPERTY COMPILE_DEFINITIONS __UNIX__
     )
 endif(UNIX)
 
 set_property(
-    TARGET HYPHYMP
+    TARGET hyphy
     APPEND PROPERTY COMPILE_DEFINITIONS __MP__ __MP2__
 )
 
 set_property(
-    TARGET HYPHYMP HYPHYGTEST HYPHYDEBUG
+    TARGET hyphy HYPHYGTEST HYPHYDEBUG
     APPEND PROPERTY COMPILE_DEFINITIONS _HYPHY_LIBDIRECTORY_="${CMAKE_INSTALL_PREFIX}/lib/hyphy"
 )
 
@@ -460,9 +462,15 @@ set_property(
 )
 
 set_target_properties(
-    HYPHYMP
+    hyphy
     PROPERTIES
     COMPILE_FLAGS "${DEFAULT_COMPILE_FLAGS} ${DEFAULT_WARNING_FLAGS} ${OpenMP_CXX_FLAGS}"
     LINK_FLAGS "${DEFAULT_LINK_FLAGS} ${OpenMP_CXX_FLAGS}"
 )
+
+macro(makeLink src dest target)
+  add_custom_command(TARGET ${target} POST_BUILD 
+    COMMAND ln -sf ${dest} ${src} DEPENDS ${dest} COMMENT "mklink ${src} -> ${dest}")
+endmacro()
+makeLink(HYPHYMP hyphy hyphy)
 

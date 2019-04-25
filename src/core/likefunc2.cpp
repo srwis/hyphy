@@ -893,11 +893,11 @@ _List*   _LikelihoodFunction::RecoverAncestralSequencesMarginal (long index, _Ma
 
     _SimpleList  conversion;
     _AVLListXL   conversionAVL (&conversion);
-    _String      codeBuffer    (unitLength, false);
+    _String      codeBuffer    (unitLength);
     _List        *result       = new _List;
 
     for (long k = 0L; k < matrixSize; k++) {
-        (*result) < new _String(siteCount*unitLength,false);
+        (*result) < new _String((unsigned long)siteCount*unitLength);
     }
 
     for (long siteID = 0L; siteID < patternCount; siteID++) {
@@ -1031,7 +1031,7 @@ hyFloat          _LikelihoodFunction::SumUpHiddenMarkov (const hyFloat * pattern
         }
 
         if (max <= 0.0) {
-            return -A_LARGE_NUMBER;
+            return -INFINITY;
         }
 
         correctionFactor -= log (max);
@@ -1184,56 +1184,6 @@ hyFloat mapParameterToInverval (hyFloat in, char type, bool inverse)
     return in;
 }
 
-//_______________________________________________________________________________________________
-
-void _LikelihoodFunction::SetupParameterMapping (void)
-{
-    parameterTransformationFunction.Clear();
-    parameterValuesAndRanges = new _Matrix (indexInd.lLength, 4, false, true);
-    checkParameter(addLFSmoothing, smoothingTerm, 0.0);
-    checkParameter(reduceLFSmoothing, smoothingReduction, 0.8);
-    if (smoothingPenalty < 0.0) {
-      smoothingPenalty = 0.0;
-    }
-    if (smoothingReduction <= 0.0 || smoothingReduction >= 1.0) {
-      smoothingReduction = 0.8;
-    }
-    
-
-    for (unsigned long pIndex = 0; pIndex < indexInd.lLength; pIndex++) {
-        _Variable* cv        = GetIthIndependentVar(pIndex);
-        hyFloat thisLB    = cv->GetLowerBound(),
-                   thisUB    = cv->GetUpperBound(),
-                   thisValue = cv->Compute()->Value();
-
-        //parameterTransformationFunction << _hyphyIntervalMapID;
-        if (thisLB >= 0.0 && thisUB <= 1.0) {
-            parameterTransformationFunction << _hyphyIntervalMapID;
-        } else if (thisLB >=0.0) {
-            parameterTransformationFunction << _hyphyIntervalMapSqueeze;
-        } else {
-            parameterTransformationFunction << _hyphyIntervalMapExpit;
-        }
-
-
-        parameterValuesAndRanges->Store(pIndex,0,thisValue);
-        parameterValuesAndRanges->Store(pIndex,1,mapParameterToInverval(thisValue,parameterTransformationFunction.Element(-1),false));
-        parameterValuesAndRanges->Store(pIndex,2,mapParameterToInverval(thisLB,parameterTransformationFunction.Element(-1),false));
-        parameterValuesAndRanges->Store(pIndex,3,mapParameterToInverval(thisUB,parameterTransformationFunction.Element(-1),false));
-    }
-
-}
-
-//_______________________________________________________________________________________________
-
-void _LikelihoodFunction::CleanupParameterMapping (void)
-{
-    smoothingPenalty = 0.0;
-    smoothingTerm    = 0.0;
-    DeleteObject (parameterValuesAndRanges);
-    parameterValuesAndRanges = nil;
-    parameterTransformationFunction.Clear();
-}
 
 
 

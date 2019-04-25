@@ -950,12 +950,10 @@ bool         _Polynomial::Equal(_MathObject* m)
         _Polynomial * diff = (_Polynomial *)Sub(m);
         if (diff) {
             _Constant * v = (_Constant*)diff->IsANumber(true);
-            if (v!=nil) {
+            if (v) {
                 result = CheckEqual (v->Value(),0.0);
                 DeleteObject (v);
             }
-            //_String * diffS = (_String*)diff->toStr();
-            //printf ("%s\n", diffS->getStr());
             DeleteObject (diff);
         }
 
@@ -2065,7 +2063,7 @@ _MathObject* _Polynomial::Mult (_MathObject* m)
                     }
                 }
 
-                delete newTerm;
+                delete []newTerm;
             } else {
                 _SimpleList merge1, merge2, joint;
                 joint.Merge (variableIndex, p2->variableIndex,&merge1,&merge2);

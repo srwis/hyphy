@@ -117,9 +117,9 @@ public:
     _String     TrimNameSpaceFromID         (_String&);
   
     bool        has_stdin_redirect         (void) const {return stdinRedirect != nil;}
-    bool        has_keyword_arguments      (void) const {return kwargs && kwargs -> countitems() || kwarg_tags && kwarg_tags->countitems();}
+    bool        has_keyword_arguments      (void) const {return (kwargs && kwargs -> countitems()) || (kwarg_tags && kwarg_tags->countitems());}
   
-    _String*    FetchFromStdinRedirect     (_String const * dialog_tag = nil, bool handle_multi_choice = false);
+    _String*    FetchFromStdinRedirect     (_String const * dialog_tag = nil, bool handle_multi_choice = false, bool do_echo = false);
     
     _ElementaryCommand* FetchLastCommand (void) {
         if (currentCommand - 1 < lLength && currentCommand > 0) {
@@ -135,7 +135,7 @@ public:
         currentCommand = MAX(currentCommand,lLength-1);
     }
     
-    _StringBuffer const GenerateHelpMessage         (void) const;
+    _StringBuffer const GenerateHelpMessage         (_AVLList * scanned_functions = nil) const;
     
     bool        IsErrorState    (void)     {
             return errorState;
@@ -375,7 +375,7 @@ public:
   
     bool              DecompileFormulae        (void);
   
-    void              BuildListOfDependancies  (_AVLListX & collection, bool recursive, _ExecutionList& chain);
+    void              BuildListOfDependancies  (_AVLListX & collection, bool recursive, _ExecutionList const& chain);
     
     /**
      
@@ -392,7 +392,7 @@ public:
 
 protected:
   
-    static    void ScanStringExpressionForHBLFunctions (_String*, _ExecutionList&, bool, _AVLListX& );
+    static    void ScanStringExpressionForHBLFunctions (_String*, _ExecutionList const&, bool, _AVLListX& );
 
     _String  *   GetIthParameter       (unsigned long i, bool range_check = true) const {
         BaseRef p = parameters.GetItemRangeCheck(i);

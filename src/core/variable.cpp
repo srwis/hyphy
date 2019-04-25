@@ -163,8 +163,7 @@ _Variable::_Variable (_String const&s, bool isG) {
 
 //__________________________________________________________________________________
 
-_Variable::_Variable (_String const&s, _String const &f, bool isG)//:  _Formula (f)
-{
+_Variable::_Variable (_String const&s, _String const &f, bool isG) {
     //hasBeenChanged = false;
     //isGlobal = isG;
     theName     = new _String(s);
@@ -189,15 +188,9 @@ _Variable::_Variable (_String const&s, _String const &f, bool isG)//:  _Formula 
 
 //__________________________________________________________________________________
 
-_Variable::~_Variable (void)
-{
-  //nInstances++;
-    if (varValue) {
-        DeleteObject (varValue);
-    }
-    if (theName) {
-        DeleteObject (theName);
-    }
+_Variable::~_Variable (void) {
+    DeleteObject (varValue);
+    DeleteObject (theName);
     if (varFormula) {
         delete (varFormula);
     }
@@ -503,6 +496,8 @@ void    _Variable::ClearConstraints (void)
                 }
         */
     } else {
+        //printf ("ClearConstraints %s %x\n", GetName()->get_str(), varFormula);
+
         if (!IsIndependent()) {
             SetValue ((HBLObjectRef)Compute()->makeDynamic(),false);
         }
